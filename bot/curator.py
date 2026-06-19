@@ -3,10 +3,9 @@ import json
 import re
 import time
 from datetime import datetime
-import google.generativeai as genai
+from google import genai
 
-genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-model = genai.GenerativeModel("gemini-2.0-flash-lite")  # free tier friendly
+client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
 TOPIC_DISCOVERY_PROMPT = """
 You are an autonomous elite knowledge curator.
@@ -49,7 +48,10 @@ Respond ONLY in this exact JSON format, nothing else:
 def call_gemini(prompt: str) -> str:
     for attempt in range(3):
         try:
-            response = model.generate_content(prompt)
+            response = client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=prompt
+            )
             return response.text.strip()
         except Exception as e:
             print(f"[RETRY {attempt+1}] {e}")
