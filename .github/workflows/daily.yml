@@ -1,0 +1,49 @@
+name: Daily Elite Curation
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # প্রতিদিন রাত ১২টা UTC
+  workflow_dispatch:       # ম্যানুয়ালি চালানোর জন্য
+
+jobs:
+  curate:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run curator
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python bot/curator.py
+
+      - name: Run transcript
+        run: python bot/transcript.py
+
+      - name: Run analyzer
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python bot/analyzer.py
+
+      - name: Build site
+        run: python bot/build_site.py
+
+      - name: Commit and push
+        run: |
+          git config user.name "elite-bot"
+          git config user.email "bot@elite.com"
+          git add data/videos.json docs/index.html
+          git commit -m "Daily update $(date +'%Y-%m-%d')" || echo "Nothing to commit"
+          git push
