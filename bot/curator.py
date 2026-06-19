@@ -1,6 +1,7 @@
 import os
 import json
 import re
+import time
 from datetime import datetime
 import google.generativeai as genai
 
@@ -76,6 +77,7 @@ def find_elite_video(topic: str) -> dict | None:
 
         data["curated_at"] = datetime.utcnow().isoformat()
         print(f"[OK] Found: {data['title']}")
+        time.sleep(10)  # rate limit এড়াতে
         return data
 
     except Exception as e:
@@ -88,6 +90,7 @@ def run():
 
     print("Gemini is deciding today's elite topics...")
     topics = discover_topics()
+    time.sleep(15)  # topic discovery এর পর wait
 
     for topic in topics:
         print(f"\nSearching: {topic}")
