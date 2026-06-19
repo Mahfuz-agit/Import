@@ -6,23 +6,23 @@ from datetime import datetime
 import google.generativeai as genai
 
 genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-model = genai.GenerativeModel("gemini-2.0-flash")
+model = genai.GenerativeModel("gemini-2.0-flash-lite")  # free tier friendly
 
 TOPIC_DISCOVERY_PROMPT = """
 You are an autonomous elite knowledge curator.
 
 Today's date: {date}
 
-Your task: Decide what topics a truly elite, intellectually curious human SHOULD explore today.
+Decide what topics a truly elite, intellectually curious human SHOULD explore today.
 
 Rules:
-- Do NOT repeat obvious or common topics
-- Think across all domains: science, philosophy, history, math, technology, society, art, cognition
-- Choose topics that expand worldview, not just career skills
-- Be unpredictable. Be bold. Be elite.
+- Think across ALL domains: science, philosophy, history, math, technology, society, art, cognition
+- No obvious or common topics
+- Expand worldview, not just career skills
+- Be unpredictable. Be bold.
 
-Return ONLY a JSON array of 10 topic search queries. Nothing else. No markdown.
-Example: ["quantum decoherence explained", "stoic philosophy Marcus Aurelius", ...]
+Return ONLY a JSON array of 5 topic search queries. Nothing else. No markdown.
+Example: ["quantum decoherence explained", "stoic philosophy Marcus Aurelius"]
 """
 
 SEARCH_PROMPT = """
@@ -46,38 +46,44 @@ Respond ONLY in this exact JSON format, nothing else:
 }}
 """
 
+def call_gemini(prompt: str) -> str:
+    for attempt in range(3):
+        try:
+            response = model.generate_content(prompt)
+            return response.text.strip()
+        except Exception as e:
+            print(f"[RETRY {attempt+1}] {e}")
+            time.sleep(30)
+    return ""
+
+
 def discover_topics() -> list:
     prompt = TOPIC_DISCOVERY_PROMPT.format(date=datetime.utcnow().strftime("%B %d, %Y"))
-    response = model.generate_content(prompt)
-    text = response.text.strip()
+    text = call_gemini(prompt)
     match = re.search(r'\[.*\]', text, re.DOTALL)
     if not match:
         return []
     topics = json.loads(match.group())
-    print(f"[TOPICS] Gemini chose: {topics}")
+    print(f"[TOPICS] {topics}")
     return topics
 
 
 def find_elite_video(topic: str) -> dict | None:
     try:
-        prompt = SEARCH_PROMPT.format(topic=topic)
-        response = model.generate_content(prompt)
-        text = response.text.strip()
-
+        text = call_gemini(SEARCH_PROMPT.format(topic=topic))
         match = re.search(r'\{.*\}', text, re.DOTALL)
         if not match:
-            print(f"[SKIP] No JSON found for: {topic}")
+            print(f"[SKIP] No JSON: {topic}")
             return None
 
         data = json.loads(match.group())
 
         if float(data.get("score", 0)) < 9.7:
-            print(f"[SKIP] Low score for: {topic}")
+            print(f"[SKIP] Low score: {topic}")
             return None
 
         data["curated_at"] = datetime.utcnow().isoformat()
-        print(f"[OK] Found: {data['title']}")
-        time.sleep(10)  # rate limit এড়াতে
+        print(f"[OK] {data['title']}")
         return data
 
     except Exception as e:
@@ -88,15 +94,16 @@ def find_elite_video(topic: str) -> dict | None:
 def run():
     results = []
 
-    print("Gemini is deciding today's elite topics...")
+    print("Gemini deciding today's topics...")
     topics = discover_topics()
-    time.sleep(15)  # topic discovery এর পর wait
+    time.sleep(20)
 
     for topic in topics:
         print(f"\nSearching: {topic}")
         video = find_elite_video(topic)
         if video:
             results.append(video)
+        time.sleep(15)
 
     os.makedirs("data", exist_ok=True)
     with open("data/videos.json", "w", encoding="utf-8") as f:
